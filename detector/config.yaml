@@ -49,7 +49,7 @@ blocking:
 
 # --- Slack ---
 slack:
-  webhook_url: "REDACTED_SLACK_WEBHOOK"
+  # webhook_url: "REDACTED_SLACK_WEBHOOK"
   # Minimum seconds between duplicate alerts for the same IP
   alert_cooldown_seconds: 60
 
