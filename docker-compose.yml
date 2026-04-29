@@ -65,6 +65,7 @@ services:
       - HNG-nginx-logs:/var/log/nginx:ro
     networks:
       - internal
+      - external
     expose:
       - "80"
 
@@ -79,6 +80,7 @@ services:
       - nextcloud
     ports:
       - "80:80"
+      - "5000:5000"  # Expose JSON log endpoint for testing (not needed in prod)
       # Uncomment for HTTPS once you have a cert:
       # - "443:443"
     volumes:
