@@ -10,9 +10,9 @@ suspicious IPs via iptables.
 
 | What | URL |
 |------|-----|
-| Metrics dashboard | `http://<your-subdomain>:8080` |
-| Nextcloud | `http://<your-server-ip>` |
-| GitHub repo | https://github.com/YOUR_USERNAME/hng-anomaly-detector |
+| Metrics dashboard | `http://http://75.101.216.113:5000` |
+| Nextcloud | `http://75.101.216.113:5000>` |
+| GitHub repo | https://github.com/Marlinekhavele/Anomaly-Detection |
 
 ---
 
@@ -21,7 +21,7 @@ suspicious IPs via iptables.
 **Python 3.11** — chosen because:
 - `collections.deque` is a first-class data structure (perfect for the sliding window)
 - `threading` module makes daemon threads trivial
-- `FastAPI` gives a 3-second dashboard with minimal boilerplate
+- `Flask` gives a 3-second dashboard with minimal boilerplate
 - Standard library covers iptables (`subprocess`), Slack (`urllib`), and YAML (`pyyaml`)
 - Readable for code review — every algorithm step is visible without framework magic
 
