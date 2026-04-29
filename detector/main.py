@@ -7,7 +7,7 @@ Thread layout:
   main thread     — detection loop: read queue → baseline → detect → act
   LogMonitor      — tails log file, puts LogEntry onto queue
   Unbanner        — periodically releases expired bans
-  Dashboard       — FastAPI web server
+  Dashboard       — Flask web server
 
 Signal handling:
   SIGTERM / SIGINT → graceful shutdown (stops threads, flushes logs)
