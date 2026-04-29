@@ -1,0 +1,68 @@
+# =============================================================================
+# Anomaly Detection Engine — Configuration
+# All thresholds live here. Never hardcode in source files.
+# =============================================================================
+
+# --- Nginx log path (inside the shared Docker volume) ---
+log:
+  path: /var/log/nginx/hng-access.log
+
+# --- Sliding window sizes ---
+windows:
+  # How many seconds to look back when computing per-IP and global req/s
+  short_window_seconds: 60
+
+# --- Rolling baseline ---
+baseline:
+  # How many minutes of history to keep for mean/stddev calculation
+  rolling_window_minutes: 30
+  # How often (seconds) to recalculate mean/stddev from the rolling window
+  recalc_interval_seconds: 60
+  # Minimum number of per-second samples before we trust a baseline
+  min_samples: 30
+  # Floor values so we never divide by zero or trigger on idle traffic
+  floor_mean: 1.0        # at least 1 req/s assumed as baseline
+  floor_stddev: 0.5      # at least 0.5 req/s stddev
+
+# --- Anomaly detection thresholds ---
+detection:
+  # Z-score threshold — flag if (rate - mean) / stddev > this value
+  zscore_threshold: 3.0
+  # Rate multiple threshold — flag if rate > mean * this multiplier
+  rate_multiplier: 5.0
+  # Error surge: flag IP if its 4xx/5xx rate exceeds baseline_error_rate * this
+  error_surge_multiplier: 3.0
+  # When error surge is active, tighten thresholds by this factor
+  # e.g. 0.7 means zscore threshold becomes 3.0 * 0.7 = 2.1
+  error_tighten_factor: 0.7
+
+# --- Blocking / banning ---
+blocking:
+  # Backoff schedule in seconds: 10min, 30min, 2hr, then permanent
+  ban_durations_seconds:
+    - 600      # 10 minutes
+    - 1800     # 30 minutes
+    - 7200     # 2 hours
+    - -1       # -1 means permanent (no auto-unban)
+  # How often (seconds) the unbanner checks for expired bans
+  unban_check_interval_seconds: 30
+
+# --- Slack ---
+slack:
+  webhook_url: "REDACTED_SLACK_WEBHOOK"
+  # Minimum seconds between duplicate alerts for the same IP
+  alert_cooldown_seconds: 60
+
+# --- Dashboard ---
+dashboard:
+  host: "0.0.0.0"
+  port: 8080
+  # How often the browser auto-refreshes (milliseconds)
+  refresh_interval_ms: 3000
+
+# --- Audit log ---
+audit:
+  path: /var/log/detector/audit.log
+
+# --- Logging level for the daemon itself ---
+log_level: INFO

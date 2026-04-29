@@ -1,0 +1,143 @@
+version: "3.9"
+
+# =============================================================================
+# HNG Nextcloud + Anomaly Detection Stack
+#
+# Services:
+#   db          — PostgreSQL database for Nextcloud
+#   nextcloud   — Pre-built HNG Nextcloud image
+#   nginx       — Reverse proxy with JSON access logging
+#   detector    — Anomaly detection daemon
+#
+# Volumes:
+#   HNG-nginx-logs  — NAMED volume 
+#                     nginx WRITES to it, detector READS from it (read-only)
+#   nextcloud-data  — Nextcloud user files
+#   db-data         — PostgreSQL data
+# =============================================================================
+
+services:
+
+  # ---------------------------------------------------------------------------
+  # Database
+  # ---------------------------------------------------------------------------
+  db:
+    image: postgres:15
+    container_name: hng-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_ROOT_PASSWORD: ${POSTGRES_ROOT_PASSWORD:-changeme_root}
+      POSTGRES_DB:      nextcloud
+      POSTGRES_USER:          nextcloud
+      POSTGRES_PASSWORD:      ${POSTGRES_PASSWORD:-changeme_db}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD", "pg_isready", "-d", "nextcloud", "-U", "nextcloud"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ---------------------------------------------------------------------------
+  # Nextcloud (pre-built, do NOT modify image)
+  # ---------------------------------------------------------------------------
+  nextcloud:
+    image: kefaslungu/hng-nextcloud:latest
+    container_name: hng-nextcloud
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      POSTGRES_HOST:     db
+      POSTGRES_DATABASE: nextcloud
+      POSTGRES_USER:     nextcloud
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme_db}
+      NEXTCLOUD_ADMIN_USER:     ${NC_ADMIN_USER:-admin}
+      NEXTCLOUD_ADMIN_PASSWORD: ${NC_ADMIN_PASS:-changeme_admin}
+      NEXTCLOUD_TRUSTED_DOMAINS: ${SERVER_IP:-localhost} nginx
+      OVERWRITEPROTOCOL: http
+    volumes:
+      - nextcloud-data:/var/www/html
+      # Mount logs volume READ-ONLY (Nextcloud doesn't write Nginx logs, but
+      # the spec says Nextcloud mounts it — satisfying that requirement)
+      - HNG-nginx-logs:/var/log/nginx:ro
+    networks:
+      - internal
+    expose:
+      - "80"
+
+  # ---------------------------------------------------------------------------
+  # Nginx reverse proxy
+  # ---------------------------------------------------------------------------
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: hng-nginx
+    restart: unless-stopped
+    depends_on:
+      - nextcloud
+    ports:
+      - "80:80"
+      # Uncomment for HTTPS once you have a cert:
+      # - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      # WRITE access — Nginx is the only writer to the named volume
+      - HNG-nginx-logs:/var/log/nginx
+    networks:
+      - internal
+      - external
+
+  # ---------------------------------------------------------------------------
+  # Anomaly detection daemon
+  # ---------------------------------------------------------------------------
+  detector:
+    build:
+      context: ./detector
+      dockerfile: Dockerfile
+    container_name: hng-detector
+    restart: unless-stopped
+    depends_on:
+      - nginx
+    # NET_ADMIN is required to run iptables
+    cap_add:
+      - NET_ADMIN
+    # Run as root so iptables works (or configure sudoers)
+    user: root
+    volumes:
+      # READ-ONLY access to the Nginx log volume
+      - HNG-nginx-logs:/var/log/nginx:ro
+      # Writable volume for audit log
+      - detector-logs:/var/log/detector
+      # Mount config so you can edit thresholds without rebuilding
+      - ./detector/config.yaml:/app/config.yaml:ro
+    ports:
+      # Dashboard exposed to the host
+      - "8080:8080"
+    environment:
+      SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL:-}
+    networks:
+      - internal
+      - external
+
+# =============================================================================
+# Named volumes
+# =============================================================================
+volumes:
+  HNG-nginx-logs:    # Shared log volume — nginx writes, detector + nextcloud read
+    name: HNG-nginx-logs
+  nextcloud-data:
+  db-data:
+  detector-logs:
+
+# =============================================================================
+# Networks
+# =============================================================================
+networks:
+  internal:
+    driver: bridge
+    internal: true   # nextcloud/db can't reach the internet directly
+  external:
+    driver: bridge   # nginx + detector can reach the internet
